@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单结算</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container" style="margin-top: 20px;">
+        <h2>订单结算</h2>
+
+        <!-- 收货地址 -->
+        <div style="background-color: #fff; padding: 20px; border-radius: 4px; margin-top: 20px;">
+            <h3>收货地址</h3>
+            <div id="addressList"></div>
+            <button class="btn btn-secondary" onclick="showAddAddressForm()" style="margin-top: 10px;">添加新地址</button>
+
+            <!-- 添加地址表单 -->
+            <div id="addAddressForm" style="display: none; margin-top: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
+                <h4>新增收货地址</h4>
+                <div class="form-group">
+                    <label>收件人</label>
+                    <input type="text" id="receiver" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>手机号</label>
+                    <input type="tel" id="phone" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>省份</label>
+                    <input type="text" id="province" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>城市</label>
+                    <input type="text" id="city" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>区/县</label>
+                    <input type="text" id="district" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>详细地址</label>
+                    <input type="text" id="detail" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isDefault"> 设为默认地址
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="saveAddress()">保存</button>
+                <button class="btn btn-secondary" onclick="hideAddAddressForm()">取消</button>
+            </div>
+        </div>
+
+        <!-- 商品信息 -->
+        <div style="background-color: #fff; padding: 20px; border-radius: 4px; margin-top: 20px;">
+            <h3>商品信息</h3>
+            <div id="productList"></div>
+            <div style="margin-top: 20px; text-align: right;">
+                <p style="font-size: 18px;">订单总额: <span id="totalAmount" style="color: #e74c3c; font-weight: bold;">¥0.00</span></p>
+            </div>
+        </div>
+
+        <!-- 提交订单 -->
+        <div style="text-align: right; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="submitOrder()" style="font-size: 16px; padding: 12px 30px;">提交订单</button>
+        </div>
+    </main>
+
+    <script>
+        let addresses = [];
+        let selectedAddressId = null;
+        let cartItems = [];
+
+        window.onload = function() {
+            loadAddresses();
+            loadCheckedItems();
+        };
+
+        function loadAddresses() {
+            fetch('/api/address/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        addresses = data.data;
+                        displayAddresses();
+                    } else if (data.code === 401) {
+                        alert('请先登录');
+                        window.location.href = '/login';
+                    }
+                });
+        }
+
+        function displayAddresses() {
+            const addressList = document.getElementById('addressList');
+            addressList.innerHTML = '';
+
+            if (addresses.length === 0) {
+                addressList.innerHTML = '<p>暂无收货地址，请添加</p>';
+                return;
+            }
+
+            addresses.forEach(address => {
+                const div = document.createElement('div');
+                div.style.cssText = 'border: 2px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; cursor: pointer;';
+                if (address.isDefault && !selectedAddressId) {
+                    selectedAddressId = address.id;
+                    div.style.borderColor = '#e74c3c';
+                }
+                div.onclick = () => selectAddress(address.id);
+                div.innerHTML = `
+                    <p><strong>${address.receiver}</strong> ${address.phone} ${address.isDefault ? '<span style="color: #e74c3c;">[默认]</span>' : ''}</p>
+                    <p>${address.province} ${address.city} ${address.district} ${address.detail}</p>
+                `;
+                addressList.appendChild(div);
+            });
+        }
+
+        function selectAddress(addressId) {
+            selectedAddressId = addressId;
+            displayAddresses();
+        }
+
+        function showAddAddressForm() {
+            document.getElementById('addAddressForm').style.display = 'block';
+        }
+
+        function hideAddAddressForm() {
+            document.getElementById('addAddressForm').style.display = 'none';
+        }
+
+        function saveAddress() {
+            const address = {
+                receiver: document.getElementById('receiver').value,
+                phone: document.getElementById('phone').value,
+                province: document.getElementById('province').value,
+                city: document.getElementById('city').value,
+                district: document.getElementById('district').value,
+                detail: document.getElementById('detail').value,
+                isDefault: document.getElementById('isDefault').checked
+            };
+
+            fetch('/api/address/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(address)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('添加成功');
+                    hideAddAddressForm();
+                    loadAddresses();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function loadCheckedItems() {
+            fetch('/api/cart/checked')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        cartItems = data.data;
+                        displayProducts();
+                    }
+                });
+        }
+
+        function displayProducts() {
+            const productList = document.getElementById('productList');
+            let total = 0;
+
+            cartItems.forEach(item => {
+                const div = document.createElement('div');
+                div.style.cssText = 'display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee;';
+                div.innerHTML = `
+                    <span>${item.productName} x ${item.quantity}</span>
+                    <span>¥${(item.productPrice * item.quantity).toFixed(2)}</span>
+                `;
+                productList.appendChild(div);
+                total += item.productPrice * item.quantity;
+            });
+
+            document.getElementById('totalAmount').textContent = '¥' + total.toFixed(2);
+        }
+
+        function submitOrder() {
+            if (!selectedAddressId) {
+                alert('请选择收货地址');
+                return;
+            }
+
+            fetch('/api/order/create?addressId=' + selectedAddressId, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    window.location.href = '/payment?orderNo=' + data.data.orderNo;
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

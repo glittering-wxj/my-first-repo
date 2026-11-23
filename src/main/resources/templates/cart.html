@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>购物车</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+                <ul class="nav-menu">
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/cart" style="color:#e74c3c; font-weight:bold; border-bottom:3px solid #e74c3c; padding-bottom:5px;">购物车</a></li>
+                    <li><a href="/user/orders">我的订单</a></li>
+                    <li><a href="/user/profile">个人中心</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container" style="margin-top: 20px;">
+        <h2>我的购物车</h2>
+        <div style="background-color: #fff; padding: 20px; border-radius: 4px; margin-top: 20px;">
+            <table id="cartTable">
+                <thead>
+                    <tr>
+                        <th width="50"><input type="checkbox" id="checkAll" onchange="toggleCheckAll()"></th>
+                        <th>商品信息</th>
+                        <th>单价</th>
+                        <th>数量</th>
+                        <th>小计</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="cartBody"></tbody>
+            </table>
+
+            <div style="margin-top: 20px; text-align: right;">
+                <p style="font-size: 18px;">总计: <span id="totalAmount" style="color: #e74c3c; font-weight: bold;">¥0.00</span></p>
+                <button class="btn btn-primary" onclick="goToCheckout()" style="margin-top: 10px;">去结算</button>
+                <button class="btn btn-secondary" onclick="clearCart()" style="margin-top: 10px;">清空购物车</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let cartItems = [];
+
+        window.onload = function() {
+            loadCartItems();
+        };
+
+        function loadCartItems() {
+            fetch('/api/cart/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        cartItems = data.data;
+                        displayCartItems();
+                    } else if (data.code === 401) {
+                        alert('请先登录');
+                        window.location.href = '/login';
+                    }
+                });
+        }
+
+        function displayCartItems() {
+            const cartBody = document.getElementById('cartBody');
+            cartBody.innerHTML = '';
+
+            if (cartItems.length === 0) {
+                cartBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">购物车是空的</td></tr>';
+                document.getElementById('totalAmount').textContent = '¥0.00';
+                return;
+            }
+
+            cartItems.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="checkbox" ${item.checked ? 'checked' : ''} onchange="updateChecked(${item.id}, this.checked)"></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 80px; height: 80px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                                ${item.productImage ? '<img src="' + item.productImage + '" style="max-width:100%; max-height:100%;">' : '暂无图片'}
+                            </div>
+                            <span>${item.productName}</span>
+                        </div>
+                    </td>
+                    <td>¥${item.productPrice}</td>
+                    <td>
+                        <button onclick="changeQuantity(${item.id}, ${item.quantity - 1})">-</button>
+                        <span style="margin: 0 10px;">${item.quantity}</span>
+                        <button onclick="changeQuantity(${item.id}, ${item.quantity + 1})">+</button>
+                    </td>
+                    <td>¥${(item.productPrice * item.quantity).toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="deleteItem(${item.id})">删除</button>
+                    </td>
+                `;
+                cartBody.appendChild(row);
+            });
+
+            calculateTotal();
+        }
+
+        function updateChecked(itemId, checked) {
+            fetch('/api/cart/updateChecked?itemId=' + itemId + '&checked=' + checked, {
+                method: 'PUT'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    loadCartItems();
+                }
+            });
+        }
+
+        function changeQuantity(itemId, quantity) {
+            if (quantity < 1) return;
+
+            fetch('/api/cart/updateQuantity?itemId=' + itemId + '&quantity=' + quantity, {
+                method: 'PUT'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    loadCartItems();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function deleteItem(itemId) {
+            if (!confirm('确定删除该商品吗？')) return;
+
+            fetch('/api/cart/delete/' + itemId, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    loadCartItems();
+                }
+            });
+        }
+
+        function clearCart() {
+            if (!confirm('确定清空购物车吗？')) return;
+
+            fetch('/api/cart/clear', {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    loadCartItems();
+                }
+            });
+        }
+
+        function toggleCheckAll() {
+            const checkAll = document.getElementById('checkAll').checked;
+            cartItems.forEach(item => {
+                updateChecked(item.id, checkAll);
+            });
+        }
+
+        function calculateTotal() {
+            let total = 0;
+            cartItems.forEach(item => {
+                if (item.checked) {
+                    total += item.productPrice * item.quantity;
+                }
+            });
+            document.getElementById('totalAmount').textContent = '¥' + total.toFixed(2);
+        }
+
+        function goToCheckout() {
+            const checkedItems = cartItems.filter(item => item.checked);
+            if (checkedItems.length === 0) {
+                alert('请选择要结算的商品');
+                return;
+            }
+            window.location.href = '/checkout';
+        }
+    </script>
+</body>
+</html>

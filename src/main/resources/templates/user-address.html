@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收货地址管理</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .address-card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+            position: relative;
+        }
+        .address-card.default {
+            border-color: #e74c3c;
+        }
+        .default-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #e74c3c;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+                <ul class="nav-menu">
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/cart">购物车</a></li>
+                    <li><a href="/user/orders">我的订单</a></li>
+                    <li><a href="/user/profile">个人中心</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container" style="margin-top: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <h2 style="margin: 0;">收货地址管理</h2>
+            <button class="btn btn-secondary" onclick="window.location.href='/user/profile'">← 返回个人中心</button>
+        </div>
+
+        <button class="btn btn-primary" onclick="showAddForm()" style="margin: 20px 0;">添加新地址</button>
+
+        <!-- 添加/编辑地址表单 -->
+        <div id="addressForm" style="display: none; background-color: #fff; padding: 20px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 id="formTitle">添加收货地址</h3>
+            <input type="hidden" id="addressId">
+            <div class="form-group">
+                <label>收件人</label>
+                <input type="text" id="receiver" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>手机号</label>
+                <input type="tel" id="phone" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>省份</label>
+                <input type="text" id="province" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>城市</label>
+                <input type="text" id="city" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>区/县</label>
+                <input type="text" id="district" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>详细地址</label>
+                <input type="text" id="detail" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="isDefault"> 设为默认地址
+                </label>
+            </div>
+            <button class="btn btn-primary" onclick="saveAddress()">保存</button>
+            <button class="btn btn-secondary" onclick="hideForm()">取消</button>
+        </div>
+
+        <!-- 地址列表 -->
+        <div id="addressList"></div>
+    </main>
+
+    <script>
+        window.onload = function() {
+            loadAddresses();
+        };
+
+        function loadAddresses() {
+            fetch('/api/address/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        displayAddresses(data.data);
+                    } else if (data.code === 401) {
+                        alert('请先登录');
+                        window.location.href = '/login';
+                    }
+                });
+        }
+
+        function displayAddresses(addresses) {
+            const listDiv = document.getElementById('addressList');
+            listDiv.innerHTML = '';
+
+            if (addresses.length === 0) {
+                listDiv.innerHTML = '<p>暂无收货地址</p>';
+                return;
+            }
+
+            addresses.forEach(address => {
+                const div = document.createElement('div');
+                div.className = 'address-card' + (address.isDefault ? ' default' : '');
+                div.innerHTML = `
+                    ${address.isDefault ? '<span class="default-tag">默认</span>' : ''}
+                    <p><strong>${address.receiver}</strong> ${address.phone}</p>
+                    <p>${address.province} ${address.city} ${address.district} ${address.detail}</p>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="editAddress(${address.id})">编辑</button>
+                        ${!address.isDefault ? '<button class="btn btn-primary" onclick="setDefault(' + address.id + ')">设为默认</button>' : ''}
+                        <button class="btn btn-secondary" onclick="deleteAddress(${address.id})">删除</button>
+                    </div>
+                `;
+                listDiv.appendChild(div);
+            });
+        }
+
+        function showAddForm() {
+            document.getElementById('formTitle').textContent = '添加收货地址';
+            document.getElementById('addressId').value = '';
+            document.getElementById('receiver').value = '';
+            document.getElementById('phone').value = '';
+            document.getElementById('province').value = '';
+            document.getElementById('city').value = '';
+            document.getElementById('district').value = '';
+            document.getElementById('detail').value = '';
+            document.getElementById('isDefault').checked = false;
+            document.getElementById('addressForm').style.display = 'block';
+        }
+
+        function hideForm() {
+            document.getElementById('addressForm').style.display = 'none';
+        }
+
+        function editAddress(id) {
+            fetch('/api/address/' + id)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        const address = data.data;
+                        document.getElementById('formTitle').textContent = '编辑收货地址';
+                        document.getElementById('addressId').value = address.id;
+                        document.getElementById('receiver').value = address.receiver;
+                        document.getElementById('phone').value = address.phone;
+                        document.getElementById('province').value = address.province;
+                        document.getElementById('city').value = address.city;
+                        document.getElementById('district').value = address.district;
+                        document.getElementById('detail').value = address.detail;
+                        document.getElementById('isDefault').checked = address.isDefault;
+                        document.getElementById('addressForm').style.display = 'block';
+                    }
+                });
+        }
+
+        function saveAddress() {
+            const id = document.getElementById('addressId').value;
+            const address = {
+                receiver: document.getElementById('receiver').value,
+                phone: document.getElementById('phone').value,
+                province: document.getElementById('province').value,
+                city: document.getElementById('city').value,
+                district: document.getElementById('district').value,
+                detail: document.getElementById('detail').value,
+                isDefault: document.getElementById('isDefault').checked
+            };
+
+            if (id) {
+                address.id = parseInt(id);
+            }
+
+            const url = id ? '/api/address/update' : '/api/address/create';
+            const method = id ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(address)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('保存成功');
+                    hideForm();
+                    loadAddresses();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function setDefault(id) {
+            fetch('/api/address/setDefault/' + id, {
+                method: 'PUT'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('设置成功');
+                    loadAddresses();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function deleteAddress(id) {
+            if (!confirm('确定删除该地址吗？')) return;
+
+            fetch('/api/address/delete/' + id, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('删除成功');
+                    loadAddresses();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

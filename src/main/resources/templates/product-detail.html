@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品详情</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .product-detail {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .product-main {
+            display: flex;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        .product-image-large {
+            width: 400px;
+            height: 400px;
+            background-color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        .product-image-large img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+        }
+        .product-info {
+            flex: 1;
+        }
+        .product-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .product-price-large {
+            font-size: 32px;
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .product-attr {
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .quantity-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .quantity-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            cursor: pointer;
+        }
+        .quantity-input {
+            width: 60px;
+            height: 30px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+                <ul class="nav-menu">
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/cart">购物车</a></li>
+                    <li><a href="/user/orders">我的订单</a></li>
+                    <li><a href="/user/profile">个人中心</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="product-detail">
+            <div class="product-main">
+                <!-- 商品图片 -->
+                <div class="product-image-large" id="productImage">
+                    <span style="color: #999;">暂无图片</span>
+                </div>
+
+                <!-- 商品信息 -->
+                <div class="product-info">
+                    <h1 class="product-title" id="productName">加载中...</h1>
+
+                    <div class="product-price-large">
+                        ¥<span id="productPrice">0.00</span>
+                    </div>
+
+                    <div class="product-attr">
+                        <strong>商品描述：</strong>
+                        <p id="productDesc" style="margin-top: 10px; color: #666;">暂无描述</p>
+                    </div>
+
+                    <div class="product-attr">
+                        <strong>库存：</strong>
+                        <span id="productStock">0</span> 件
+                    </div>
+
+                    <div class="product-attr">
+                        <strong>数量：</strong>
+                        <div class="quantity-selector">
+                            <button class="quantity-btn" onclick="changeQuantity(-1)">-</button>
+                            <input type="number" id="quantity" class="quantity-input" value="1" min="1" readonly>
+                            <button class="quantity-btn" onclick="changeQuantity(1)">+</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 40px; display: flex; gap: 20px;">
+                        <button class="btn btn-primary" onclick="addToCart()" style="padding: 15px 40px; font-size: 16px;">
+                            加入购物车
+                        </button>
+                        <button class="btn btn-secondary" onclick="window.history.back()" style="padding: 15px 40px; font-size: 16px;">
+                            返回
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let product = null;
+        let productId = null;
+
+        window.onload = function() {
+            // 从URL获取商品ID
+            const urlParams = new URLSearchParams(window.location.search);
+            productId = urlParams.get('id');
+
+            if (!productId) {
+                alert('商品ID无效');
+                window.location.href = '/';
+                return;
+            }
+
+            loadProduct();
+        };
+
+        function loadProduct() {
+            fetch('/api/product/' + productId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        product = data.data;
+                        displayProduct();
+                    } else {
+                        alert('商品不存在');
+                        window.location.href = '/';
+                    }
+                });
+        }
+
+        function displayProduct() {
+            document.getElementById('productName').textContent = product.name;
+            document.getElementById('productPrice').textContent = product.price;
+            document.getElementById('productDesc').textContent = product.description || '暂无描述';
+            document.getElementById('productStock').textContent = product.stock;
+
+            // 显示商品图片
+            const imageDiv = document.getElementById('productImage');
+            if (product.imageUrl) {
+                imageDiv.innerHTML = '<img src="' + product.imageUrl + '" alt="' + product.name + '">';
+            }
+
+            // 设置页面标题
+            document.title = product.name + ' - 商品详情';
+        }
+
+        function changeQuantity(delta) {
+            const input = document.getElementById('quantity');
+            let value = parseInt(input.value) + delta;
+
+            if (value < 1) value = 1;
+            if (value > product.stock) {
+                alert('库存不足');
+                value = product.stock;
+            }
+
+            input.value = value;
+        }
+
+        function addToCart() {
+            const quantity = parseInt(document.getElementById('quantity').value);
+
+            if (quantity > product.stock) {
+                alert('库存不足');
+                return;
+            }
+
+            fetch('/api/cart/add?productId=' + productId + '&quantity=' + quantity, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    if (confirm('添加成功！是否前往购物车？')) {
+                        window.location.href = '/cart';
+                    }
+                } else {
+                    alert(data.message);
+                    if (data.code === 401) {
+                        window.location.href = '/login';
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单详情</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .order-detail {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 15px 0;
+            border-bottom: 2px solid #e74c3c;
+            margin: 20px 0;
+        }
+        .info-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+                <ul class="nav-menu">
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/cart">购物车</a></li>
+                    <li><a href="/user/orders">我的订单</a></li>
+                    <li><a href="/user/profile">个人中心</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="order-detail">
+            <h2>订单详情</h2>
+
+            <!-- 订单信息 -->
+            <div class="section-title">订单信息</div>
+            <div id="orderInfo"></div>
+
+            <!-- 收货信息 -->
+            <div class="section-title">收货信息</div>
+            <div id="addressInfo"></div>
+
+            <!-- 商品信息 -->
+            <div class="section-title">商品信息</div>
+            <table style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>商品名称</th>
+                        <th>单价</th>
+                        <th>数量</th>
+                        <th>小计</th>
+                    </tr>
+                </thead>
+                <tbody id="orderItems"></tbody>
+            </table>
+
+            <!-- 订单总额 -->
+            <div style="text-align: right; margin-top: 20px;">
+                <p style="font-size: 20px;">
+                    订单总额：<span id="totalAmount" style="color: #e74c3c; font-weight: bold;">¥0.00</span>
+                </p>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div style="margin-top: 30px; text-align: right;" id="orderActions"></div>
+
+            <button class="btn btn-secondary" onclick="window.location.href='/user/orders'" style="margin-top: 20px;">
+                返回订单列表
+            </button>
+        </div>
+    </main>
+
+    <script>
+        let order = null;
+        let orderNo = '';
+
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            orderNo = urlParams.get('orderNo');
+
+            if (!orderNo) {
+                alert('订单号无效');
+                window.location.href = '/user/orders';
+                return;
+            }
+
+            loadOrderDetail();
+        };
+
+        function loadOrderDetail() {
+            fetch('/api/order/detail/' + orderNo)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        order = data.data;
+                        loadOrderItems();
+                        displayOrderInfo();
+                    } else {
+                        alert(data.message);
+                        window.location.href = '/user/orders';
+                    }
+                });
+        }
+
+        function loadOrderItems() {
+            fetch('/api/order/' + order.id + '/items')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        displayOrderItems(data.data);
+                    }
+                });
+        }
+
+        function displayOrderInfo() {
+            const statusText = ['待支付', '已支付', '已发货', '已完成', '已取消'][order.status];
+            const statusColor = ['#f39c12', '#3498db', '#9b59b6', '#27ae60', '#95a5a6'][order.status];
+
+            document.getElementById('orderInfo').innerHTML = `
+                <div class="info-item">
+                    <strong>订单号：</strong>${order.orderNo}
+                </div>
+                <div class="info-item">
+                    <strong>订单状态：</strong><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+                </div>
+                <div class="info-item">
+                    <strong>创建时间：</strong>${new Date(order.createTime).toLocaleString()}
+                </div>
+                ${order.payTime ? '<div class="info-item"><strong>支付时间：</strong>' + new Date(order.payTime).toLocaleString() + '</div>' : ''}
+            `;
+
+            document.getElementById('addressInfo').innerHTML = `
+                <div class="info-item">
+                    <strong>收货人：</strong>${order.receiver}
+                </div>
+                <div class="info-item">
+                    <strong>联系电话：</strong>${order.phone}
+                </div>
+                <div class="info-item">
+                    <strong>收货地址：</strong>${order.address}
+                </div>
+            `;
+
+            document.getElementById('totalAmount').textContent = '¥' + order.totalAmount;
+
+            // 显示操作按钮
+            let actions = '';
+            if (order.status === 0) {
+                actions += '<button class="btn btn-primary" onclick="goPay()">去支付</button> ';
+                actions += '<button class="btn btn-secondary" onclick="cancelOrder()">取消订单</button>';
+            } else if (order.status === 2) {
+                actions += '<button class="btn btn-primary" onclick="confirmOrder()">确认收货</button>';
+            }
+            document.getElementById('orderActions').innerHTML = actions;
+        }
+
+        function displayOrderItems(items) {
+            const tbody = document.getElementById('orderItems');
+            tbody.innerHTML = '';
+
+            items.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.productName}</td>
+                    <td>¥${item.productPrice}</td>
+                    <td>${item.quantity}</td>
+                    <td>¥${item.totalPrice}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function goPay() {
+            window.location.href = '/payment?orderNo=' + orderNo;
+        }
+
+        function cancelOrder() {
+            if (!confirm('确定取消该订单吗？')) return;
+
+            fetch('/api/order/cancel/' + order.id, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('订单已取消');
+                    loadOrderDetail();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function confirmOrder() {
+            if (!confirm('确认收货吗？')) return;
+
+            fetch('/api/order/confirm/' + order.id, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('确认收货成功');
+                    loadOrderDetail();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

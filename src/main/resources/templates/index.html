@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网上商城 - 首页</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+                <ul class="nav-menu">
+                    <li><a href="/" style="color:#e74c3c; font-weight:bold; border-bottom:3px solid #e74c3c; padding-bottom:5px;">首页</a></li>
+                    <li><a href="/cart">购物车</a></li>
+                    <li><a href="/user/orders">我的订单</a></li>
+                    <li><a href="/user/profile">个人中心</a></li>
+                    <li><a href="#" id="loginLink">登录</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container" style="margin-top: 20px;">
+        <!-- 分类导航 -->
+        <div style="background-color: #fff; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <h3>商品分类</h3>
+            <div id="categories" style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                <button class="btn btn-secondary" onclick="loadAllProducts()">全部商品</button>
+            </div>
+        </div>
+
+        <!-- 搜索框 -->
+        <div style="background-color: #fff; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <input type="text" id="searchInput" class="form-control" placeholder="搜索商品..."
+                   style="width: 100%; max-width: 500px;">
+            <button class="btn btn-primary" onclick="searchProducts()" style="margin-top: 10px;">搜索</button>
+        </div>
+
+        <!-- 商品列表 -->
+        <div id="productList" class="product-grid"></div>
+    </main>
+
+    <script>
+        let currentUser = null;
+
+        // 页面加载时检查登录状态
+        window.onload = function() {
+            checkLoginStatus();
+            loadCategories();
+            loadAllProducts();
+        };
+
+        // 检查登录状态
+        function checkLoginStatus() {
+            fetch('/api/user/info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        currentUser = data.data;
+                        document.getElementById('loginLink').textContent = '退出';
+                        document.getElementById('loginLink').onclick = logout;
+                    } else {
+                        document.getElementById('loginLink').textContent = '登录';
+                        document.getElementById('loginLink').href = '/login';
+                    }
+                });
+        }
+
+        // 退出登录
+        function logout() {
+            fetch('/api/user/logout', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        alert('退出成功');
+                        window.location.href = '/login';
+                    }
+                });
+            return false;
+        }
+
+        // 加载分类
+        function loadCategories() {
+            fetch('/api/product/categories/top')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        const categoriesDiv = document.getElementById('categories');
+                        data.data.forEach(category => {
+                            const btn = document.createElement('button');
+                            btn.className = 'btn btn-secondary';
+                            btn.textContent = category.name;
+                            btn.onclick = () => loadProductsByCategory(category.id);
+                            categoriesDiv.appendChild(btn);
+                        });
+                    }
+                });
+        }
+
+        // 加载所有商品
+        function loadAllProducts() {
+            fetch('/api/product/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        displayProducts(data.data);
+                    }
+                });
+        }
+
+        // 根据分类加载商品
+        function loadProductsByCategory(categoryId) {
+            fetch('/api/product/category/' + categoryId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        displayProducts(data.data);
+                    }
+                });
+        }
+
+        // 搜索商品
+        function searchProducts() {
+            const keyword = document.getElementById('searchInput').value;
+            if (!keyword) {
+                loadAllProducts();
+                return;
+            }
+
+            fetch('/api/product/search?keyword=' + encodeURIComponent(keyword))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        displayProducts(data.data);
+                    }
+                });
+        }
+
+        // 显示商品列表
+        function displayProducts(products) {
+            const productList = document.getElementById('productList');
+            productList.innerHTML = '';
+
+            if (products.length === 0) {
+                productList.innerHTML = '<p>暂无商品</p>';
+                return;
+            }
+
+            products.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <div class="product-image">${product.imageUrl ? '<img src="' + product.imageUrl + '" style="width:100%; height:100%; object-fit:cover;">' : '暂无图片'}</div>
+                    <h3 class="product-name">${product.name}</h3>
+                    <p style="color: #666; font-size: 14px;">${product.description || ''}</p>
+                    <div class="product-price">¥${product.price}</div>
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="addToCart(${product.id})">加入购物车</button>
+                        <button class="btn btn-secondary" onclick="viewDetail(${product.id})">查看详情</button>
+                    </div>
+                `;
+                productList.appendChild(card);
+            });
+        }
+
+        // 加入购物车
+        function addToCart(productId) {
+            fetch('/api/cart/add?productId=' + productId + '&quantity=1', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        alert('添加成功');
+                    } else {
+                        alert(data.message);
+                        if (data.code === 401) {
+                            window.location.href = '/login';
+                        }
+                    }
+                });
+        }
+
+        // 查看详情
+        function viewDetail(productId) {
+            window.location.href = '/product/detail?id=' + productId;
+        }
+    </script>
+</body>
+</html>

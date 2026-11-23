@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的订单</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">网上商城</a>
+                <ul class="nav-menu">
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/cart">购物车</a></li>
+                    <li><a href="/user/orders" style="color:#e74c3c; font-weight:bold; border-bottom:3px solid #e74c3c; padding-bottom:5px;">我的订单</a></li>
+                    <li><a href="/user/profile">个人中心</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container" style="margin-top: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <h2 style="margin: 0;">我的订单</h2>
+            <button class="btn btn-secondary" onclick="window.location.href='/user/profile'">← 返回个人中心</button>
+        </div>
+        <div id="orderList" style="margin-top: 20px;"></div>
+    </main>
+
+    <script>
+        window.onload = function() {
+            loadOrders();
+        };
+
+        function loadOrders() {
+            fetch('/api/order/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        displayOrders(data.data);
+                    } else if (data.code === 401) {
+                        alert('请先登录');
+                        window.location.href = '/login';
+                    }
+                });
+        }
+
+        function displayOrders(orders) {
+            const orderList = document.getElementById('orderList');
+            orderList.innerHTML = '';
+
+            if (orders.length === 0) {
+                orderList.innerHTML = '<p>暂无订单</p>';
+                return;
+            }
+
+            orders.forEach(order => {
+                const statusText = ['待支付', '已支付', '已发货', '已完成', '已取消'][order.status];
+                const statusColor = ['#f39c12', '#3498db', '#9b59b6', '#27ae60', '#95a5a6'][order.status];
+
+                const div = document.createElement('div');
+                div.style.cssText = 'background-color: #fff; padding: 20px; border-radius: 4px; margin-bottom: 20px;';
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <div>
+                            <p>订单号：${order.orderNo}</p>
+                            <p style="color: #666; font-size: 14px;">${new Date(order.createTime).toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <p>收货人：${order.receiver} ${order.phone}</p>
+                        <p>收货地址：${order.address}</p>
+                        <p style="color: #e74c3c; font-size: 18px; margin-top: 10px;">总金额：¥${order.totalAmount}</p>
+                    </div>
+                    <div style="margin-top: 15px; text-align: right;">
+                        <button class="btn btn-secondary" onclick="viewOrderDetail('${order.orderNo}')">查看详情</button>
+                        ${order.status === 0 ? '<button class="btn btn-primary" onclick="goPay(\'' + order.orderNo + '\')">去支付</button>' : ''}
+                        ${order.status === 0 ? '<button class="btn btn-secondary" onclick="cancelOrder(' + order.id + ')">取消订单</button>' : ''}
+                        ${order.status === 2 ? '<button class="btn btn-primary" onclick="confirmOrder(' + order.id + ')">确认收货</button>' : ''}
+                    </div>
+                `;
+                orderList.appendChild(div);
+            });
+        }
+
+        function viewOrderDetail(orderNo) {
+            window.location.href = '/user/order/detail?orderNo=' + orderNo;
+        }
+
+        function goPay(orderNo) {
+            window.location.href = '/payment?orderNo=' + orderNo;
+        }
+
+        function cancelOrder(orderId) {
+            if (!confirm('确定取消该订单吗？')) return;
+
+            fetch('/api/order/cancel/' + orderId, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('订单已取消');
+                    loadOrders();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function confirmOrder(orderId) {
+            if (!confirm('确认收货吗？')) return;
+
+            fetch('/api/order/confirm/' + orderId, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    alert('确认收货成功');
+                    loadOrders();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
